@@ -1,0 +1,630 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.FormEDI..Create(BaseForm)
+Gui.FormEDI..Caption("EDI EXCEPTION DASHBOARD")
+Gui.FormEDI..Size(15360,10800)
+Gui.FormEDI..MinX(0)
+Gui.FormEDI..MinY(0)
+Gui.FormEDI..Position(0,0)
+Gui.FormEDI..AlwaysOnTop(False)
+Gui.FormEDI..FontName("Tahoma")
+Gui.FormEDI..FontSize(8.25)
+Gui.FormEDI..ControlBox(True)
+Gui.FormEDI..MaxButton(True)
+Gui.FormEDI..MinButton(True)
+Gui.FormEDI..MousePointer(0)
+Gui.FormEDI..Moveable(True)
+Gui.FormEDI..Sizeable(True)
+Gui.FormEDI..ShowInTaskBar(True)
+Gui.FormEDI..TitleBar(True)
+Gui.FormEDI..Event(UnLoad,FormEDI_UnLoad)
+Gui.FormEDI.GsGcEDI.Create(GsGridControl)
+Gui.FormEDI.GsGcEDI.Enabled(True)
+Gui.FormEDI.GsGcEDI.Visible(True)
+Gui.FormEDI.GsGcEDI.Zorder(0)
+Gui.FormEDI.GsGcEDI.Size(15165,9165)
+Gui.FormEDI.GsGcEDI.Position(120,1110)
+Gui.FormEDI.GsGcEDI.Event(RowCellClick,GsGcEDI_RowCellClick)
+Gui.FormEDI.GsGcEDI.Anchor(15)
+Gui.FormEDI.chkShowResolved.Create(CheckBox)
+Gui.FormEDI.chkShowResolved.Enabled(True)
+Gui.FormEDI.chkShowResolved.Visible(True)
+Gui.FormEDI.chkShowResolved.Zorder(0)
+Gui.FormEDI.chkShowResolved.Size(1515,300)
+Gui.FormEDI.chkShowResolved.Position(390,735)
+Gui.FormEDI.chkShowResolved.Caption("Show Resolved")
+Gui.FormEDI.chkShowResolved.FontName("Tahoma")
+Gui.FormEDI.chkShowResolved.FontSize(8.25)
+Gui.FormEDI.cmdRefresh.Create(Button)
+Gui.FormEDI.cmdRefresh.Enabled(True)
+Gui.FormEDI.cmdRefresh.Visible(True)
+Gui.FormEDI.cmdRefresh.Zorder(0)
+Gui.FormEDI.cmdRefresh.Size(1125,345)
+Gui.FormEDI.cmdRefresh.Position(3870,540)
+Gui.FormEDI.cmdRefresh.Caption("REFRESH")
+Gui.FormEDI.cmdRefresh.FontName("Tahoma")
+Gui.FormEDI.cmdRefresh.FontSize(8.25)
+Gui.FormEDI.cmdRefresh.Event(Click,cmdRefresh_Click)
+Gui.FormEDI.dtpFrom.Create(DatePicker)
+Gui.FormEDI.dtpFrom.Enabled(True)
+Gui.FormEDI.dtpFrom.Visible(True)
+Gui.FormEDI.dtpFrom.Zorder(0)
+Gui.FormEDI.dtpFrom.Size(1500,300)
+Gui.FormEDI.dtpFrom.Position(255,360)
+Gui.FormEDI.dtpFrom.CheckBox(False)
+Gui.FormEDI.dtpFrom.FontName("Tahoma")
+Gui.FormEDI.dtpFrom.FontSize(8.25)
+Gui.FormEDI.dtpFrom.BackColor(16777215)
+Gui.FormEDI.dtpFrom.ForeColor(0)
+Gui.FormEDI.dtpTo.Create(DatePicker)
+Gui.FormEDI.dtpTo.Enabled(True)
+Gui.FormEDI.dtpTo.Visible(True)
+Gui.FormEDI.dtpTo.Zorder(0)
+Gui.FormEDI.dtpTo.Size(1500,300)
+Gui.FormEDI.dtpTo.Position(1935,360)
+Gui.FormEDI.dtpTo.CheckBox(False)
+Gui.FormEDI.dtpTo.FontName("Tahoma")
+Gui.FormEDI.dtpTo.FontSize(8.25)
+Gui.FormEDI.dtpTo.BackColor(16777215)
+Gui.FormEDI.dtpTo.ForeColor(0)
+Gui.FormEDI.lbl1.Create(Label,"From Date:",True,810,195,0,270,135,True,0,"Tahoma",8.25,,0,0)
+Gui.FormEDI.lbl1.BorderStyle(0)
+Gui.FormEDI.lbl2.Create(Label,"To Date:",True,630,195,0,1950,120,True,0,"Tahoma",8.25,,0,0)
+Gui.FormEDI.lbl2.BorderStyle(0)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+v.Global.bShowResolved.Declare(Boolean, False)
+Program.Sub.Preflight.End
+
+'ARC 6887 
+'Cust: Universal Metal Products Inc
+
+'BUSINESS CASE
+'UNIVERSAL METAL PRODUCTS currently uses the EDI Automation, however, the error reporting for EDI Automation is very difficult to read through to see what, 
+'if anything, generated an error.  What UNIVERSAL METAL PRODUCTS needs is a log of specific errors so they can be displayed later in a custom GAB Gridview similar to the EDI Exceptions core screen.
+
+'hook 57650 - EDI Inbound Automation - ORD046
+'This script display the exceptions in a dashboard
+
+Program.Sub.Main.Start
+f.Intrinsic.Control.Try
+	
+	f.Global.General.OverrideCompany("CLE")
+
+	gui.FormEDI..Visible(True)
+	
+	'production
+	f.Intrinsic.Control.CallSub(SetDateFromTo)
+
+	f.Intrinsic.Control.CallSub(GetData)
+	f.Intrinsic.Control.CallSub(FormatGrid)
+	f.Intrinsic.Control.CallSub(Deserialize)
+	
+	f.Intrinsic.Control.CallSub(AddContextMenu)
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.SetDateFromTo.Start
+f.Intrinsic.Control.Try
+	v.Local.dDateFrom.Declare(Date)
+	f.Intrinsic.Date.DateAdd("D",-3,v.Ambient.Date,v.Local.dDateFrom)
+	gui.FormEDI.dtpTo.Value(v.Ambient.Date)
+	gui.FormEDI.dtpFrom.Value(v.Local.dDateFrom)
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.SetDateFromTo.End
+
+Program.Sub.GetData.Start
+f.Intrinsic.Control.Try
+	v.Local.sSQL.Declare(String)
+	v.Local.sWhere.Declare(String)
+	v.Local.sDate.Declare(String)
+	v.Local.sDateFrom.Declare(String)
+	v.Local.sDateTo.Declare(String)
+	
+	f.Intrinsic.Control.If(v.Global.bShowResolved.Not)
+		v.Local.sWhere.Set(" and RESOLVED=0")
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.Control.If(v.Screen.FormEDI!dtpFrom.Value,!=,"")
+		v.Local.sDate.Set(v.Screen.FormEDI!dtpFrom.Value)
+		f.Intrinsic.String.Build(" and DATE_PROCESS>='{0}'", v.Local.sDate.PervasiveDate, v.Local.sDateFrom) 
+	f.Intrinsic.Control.EndIf
+	
+		f.Intrinsic.Control.If(v.Screen.FormEDI!dtpTo.Value,!=,"")
+		v.Local.sDate.Set(v.Screen.FormEDI!dtpTo.Value)
+		f.Intrinsic.String.Build(" and DATE_PROCESS<='{0}'", v.Local.sDate.PervasiveDate, v.Local.sDateTo) 
+	f.Intrinsic.Control.EndIf
+	
+'	v.Local.sSQL.Set("select DATE_PROCESS, TIME_PROCESS, RTRIM(USER_ID) USER_ID, RTRIM(BIRUNID) BIRUNID, RTRIM(FILENAME) FILENAME, RTRIM(REPORTFILE) REPORTFILE, RTRIM(BUYERID) BUYERID, RTRIM(SHIPTO_CODE) SHIPTO_CODE, RTRIM(CUSTOMER_ID) CUSTOMER_ID, RTRIM(SHIPTO_ADDL) SHIPTO_ADDL, RTRIM(PO_NUMBER) PO_NUMBER, RTRIM(SO_NUMBER) SO_NUMBER, RTRIM(ERROR_STATUS_HEAD) ERROR_STATUS_HEAD, RTRIM(ERROR_WARNING_HEAD) ERROR_WARNING_HEAD, RTRIM(CUSTOMER_PART) CUSTOMER_PART, RTRIM(INV_PART) INV_PART, RTRIM(LOCATION) LOCATION, PRICE_CUSTOMER, PRICE_GSS, RTRIM(PRICE_DESC) PRICE_DESC, RTRIM(ERROR_STATUS_LINE) ERROR_STATUS_LINE, RTRIM(ERROR_WARNING_LINE) ERROR_WARNING_LINE, RTRIM(ERROR_WARNING_MSG) ERROR_WARNING_MSG, COMPANY_CODE, RESOLVED from GCG_6887_EDI_LOG order by DATE_PROCESS, BIRUNID DESC")
+	f.Intrinsic.String.Build("select RTRIM(EID) EID, DATE_PROCESS, TIME_PROCESS, RTRIM(USER_ID) USER_ID, RTRIM(BIRUNID) BIRUNID, RTRIM(FILENAME) FILENAME, RTRIM(REPORTFILE) REPORTFILE, RTRIM(BUYERID) BUYERID, RTRIM(SHIPTO_CODE) SHIPTO_CODE, RTRIM(CUSTOMER_ID) CUSTOMER_ID, RTRIM(CUSTOMER_NAME) NAME_CUSTOMER, RTRIM(SHIPTO_ADDL) SHIPTO_ADDL, RTRIM(PO_NUMBER) PO_NUMBER, RTRIM(SO_NUMBER) SO_NUMBER, RTRIM(ERROR_STATUS_HEAD) ERROR_STATUS_HEAD, RTRIM(ERROR_WARNING_HEAD) ERROR_WARNING_HEAD, RTRIM(CUSTOMER_PART) CUSTOMER_PART, RTRIM(INV_PART) INV_PART, RTRIM(LOCATION) LOCATION, PRICE_CUSTOMER, PRICE_GSS, RTRIM(PRICE_DESC) PRICE_DESC, RTRIM(ERROR_STATUS_LINE) ERROR_STATUS_LINE, RTRIM(ERROR_WARNING_LINE) ERROR_WARNING_LINE, RTRIM(ERROR_WARNING_MSG) ERROR_WARNING_MSG, COMPANY_CODE, RESOLVED from GCG_6887_EDI_LOG where 1=1 {0} {1} {2} order by DATE_PROCESS DESC, EID DESC", v.Local.sWhere, v.Local.sDateFrom, v.Local.sDateTo, v.Local.sSQL)
+	
+	f.ODBC.Connection!Con.OpenCompanyConnection
+	f.Intrinsic.Control.If(v.DataTable.dtEDI.Exists)
+		f.Data.DataTable.Close("dtEDI")
+	f.Intrinsic.Control.EndIf
+	f.Data.DataTable.CreateFromSQL("dtEDI", "con", v.Local.sSQL, True)
+	
+	f.Data.DataTable.AddColumn("dtEDI", "SELECT", "Boolean", False)
+	
+	f.ODBC.Connection!Con.Close
+	
+	f.Intrinsic.Control.If(v.DataTable.dtEDI.RowCount,=,0)
+		f.Intrinsic.UI.Msgbox("No Records Found for Current Options")
+	f.Intrinsic.Control.EndIf
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.GetData.End
+
+Program.Sub.FormatGrid.Start
+f.Intrinsic.Control.Try
+	gui.FormEDI.GsGcEDI.Visible(False)
+
+	f.Intrinsic.Control.If(v.DataTable.dtEDI.RowCount,=,0)
+		f.Intrinsic.UI.Msgbox("No Record Found")
+		f.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.EndIf
+	
+	gui.FormEDI.GsGcEDI.AddGridviewFromDatatable("gvEDI", "dtEDI")
+	
+	gui.FormEDI.GsGcEDI.SetGridviewProperty("gvEDI", v.Enum.GridViewPropertyNames!Editable,False)
+	gui.FormEDI.GsGcEDI.SetGridviewProperty("gvEDI", v.Enum.GridViewPropertyNames!ReadOnly,True)
+	gui.FormEDI.GsGcEDI.SetGridviewProperty("gvEDI", v.Enum.GridViewPropertyNames!AllowSort,True)
+	gui.FormEDI.GsGcEDI.SetGridviewProperty("gvEDI", v.Enum.GridViewPropertyNames!AllowFilter,True)
+	gui.FormEDI.GsGcEDI.SetGridviewProperty("gvEDI", "OptionsViewColumnAutoWidth",False)
+'	gui.FormEDI.GsGcEDI.SetGridviewProperty("gvEDI", "EnableAppearanceEvenRow",True)
+	
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "DATE_PROCESS", v.Enum.ColumnPropertyNames!Caption, "DATE PROCESS")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "TIME_PROCESS", v.Enum.ColumnPropertyNames!Caption, "TIME PROCESS")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "USER_ID", v.Enum.ColumnPropertyNames!Caption, "USER")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "REPORTFILE", v.Enum.ColumnPropertyNames!Caption, "REPORT FILE")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "BUYERID", v.Enum.ColumnPropertyNames!Caption, "BUYER ID")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SHIPTO_CODE", v.Enum.ColumnPropertyNames!Caption, "SHIPTO CODE")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_ID", v.Enum.ColumnPropertyNames!Caption, "CUSTOMER CODE")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SHIPTO_ADDL", v.Enum.ColumnPropertyNames!Caption, "SHIP TO")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PO_NUMBER", v.Enum.ColumnPropertyNames!Caption, "PO NUMBER")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SO_NUMBER", v.Enum.ColumnPropertyNames!Caption, "SO NUMBER")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_HEAD", v.Enum.ColumnPropertyNames!Caption, "HEADER STATUS")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_HEAD", v.Enum.ColumnPropertyNames!Caption, "HEADER WARNING")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_PART", v.Enum.ColumnPropertyNames!Caption, "CUSTOMER PART")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "INV_PART", v.Enum.ColumnPropertyNames!Caption, "INVENTORY PART")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_CUSTOMER", v.Enum.ColumnPropertyNames!Caption, "CUSTOMER PRICE")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_GSS", v.Enum.ColumnPropertyNames!Caption, "INVENTORY PRICE")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_DESC", v.Enum.ColumnPropertyNames!Caption, "PRICE DESCRIPTION")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_LINE", v.Enum.ColumnPropertyNames!Caption, "LINE STATUS")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_LINE", v.Enum.ColumnPropertyNames!Caption, "LINE WARNING")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "COMPANY_CODE", v.Enum.ColumnPropertyNames!Caption, "COMPANY CODE")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_MSG", v.Enum.ColumnPropertyNames!Caption, "ERROR/WARNING MESSAGE")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "NAME_CUSTOMER", v.Enum.ColumnPropertyNames!Caption, "CUSTOMER NAME")
+	
+	
+	
+'	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_ID", v.Enum.ColumnPropertyNames!Icon, "DCS-OFF")
+'	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_ID", v.Enum.ColumnPropertyNames!VisibleIndex, 10)
+'	gui.FormEDI.GsGcEDI.SetCellAppearance("gvEDI", 9, 1, "backcolor", "Red")
+'	gui.FormEDI.GsGcEDI.SetCellAppearance("gvEDI", 9, 1, "ForeColor", "White")
+	
+	
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "DATE_PROCESS", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "TIME_PROCESS", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "USER_ID", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "REPORTFILE", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "BUYERID", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SHIPTO_CODE", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_ID", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SHIPTO_ADDL", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PO_NUMBER", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SO_NUMBER", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_HEAD", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_HEAD", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_PART", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "INV_PART", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_CUSTOMER", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_GSS", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_DESC", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_LINE", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_LINE", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "COMPANY_CODE", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_MSG", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "BIRUNID", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "FILENAME", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "RESOLVED", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SELECT", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "LOCATION", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "EID", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "NAME_CUSTOMER", v.Enum.ColumnPropertyNames!HeaderFontBold, True)
+	
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "DATE_PROCESS", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "USER_ID", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PO_NUMBER", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SO_NUMBER", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_HEAD", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_HEAD", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_LINE", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_LINE", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "COMPANY_CODE", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "BIRUNID", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "LOCATION", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "EID", v.Enum.ColumnPropertyNames!CellHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_CUSTOMER", v.Enum.ColumnPropertyNames!CellHAlignment, "right")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_GSS", v.Enum.ColumnPropertyNames!CellHAlignment, "right")
+	
+	
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "DATE_PROCESS", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "TIME_PROCESS", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "USER_ID", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "REPORTFILE", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "BUYERID", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SHIPTO_CODE", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_ID", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SHIPTO_ADDL", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PO_NUMBER", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SO_NUMBER", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_HEAD", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_HEAD", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_PART", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "INV_PART", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_CUSTOMER", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_GSS", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_DESC", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_LINE", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_LINE", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "DATE_PROCESS", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "COMPANY_CODE", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_MSG", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "BIRUNID", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "FILENAME", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "RESOLVED", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SELECT", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "LOCATION", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "EID", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "NAME_CUSTOMER", v.Enum.ColumnPropertyNames!HeaderHAlignment, "center")
+	
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_CUSTOMER", v.Enum.ColumnPropertyNames!DisplayCustomNumeric, "$###,###.#####")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_GSS", v.Enum.ColumnPropertyNames!DisplayCustomNumeric, "$###,###.#####")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "DATE_PROCESS", v.Enum.ColumnPropertyNames!DisplayCustomDateTime, "d")
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SELECT", v.Enum.ColumnPropertyNames!VisibleIndex, 0)
+	
+	
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "DATE_PROCESS", v.Enum.ColumnPropertyNames!MinWidth, 100)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "TIME_PROCESS", v.Enum.ColumnPropertyNames!MinWidth, 100)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "USER_ID", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "REPORTFILE", v.Enum.ColumnPropertyNames!MinWidth, 180)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "BUYERID", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SHIPTO_CODE", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_ID", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SHIPTO_ADDL", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PO_NUMBER", v.Enum.ColumnPropertyNames!MinWidth, 100)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SO_NUMBER", v.Enum.ColumnPropertyNames!MinWidth, 100)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_HEAD", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_HEAD", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "CUSTOMER_PART", v.Enum.ColumnPropertyNames!MinWidth, 180)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "INV_PART", v.Enum.ColumnPropertyNames!MinWidth, 180)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_CUSTOMER", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_GSS", v.Enum.ColumnPropertyNames!MinWidth, 180)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "PRICE_DESC", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_STATUS_LINE", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_LINE", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "COMPANY_CODE", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "ERROR_WARNING_MSG", v.Enum.ColumnPropertyNames!MinWidth, 280)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "BIRUNID", v.Enum.ColumnPropertyNames!MinWidth, 80)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "FILENAME", v.Enum.ColumnPropertyNames!MinWidth, 180)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "RESOLVED", v.Enum.ColumnPropertyNames!MinWidth, 60)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "SELECT", v.Enum.ColumnPropertyNames!MinWidth, 60)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "LOCATION", v.Enum.ColumnPropertyNames!MinWidth, 60)
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "NAME_CUSTOMER", v.Enum.ColumnPropertyNames!MinWidth, 160)
+	
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "REPORTFILE", v.Enum.ColumnPropertyNames!IsHyperlink, True)
+	
+	gui.FormEDI.GsGcEDI.MainView("gvEDI")
+	gui.FormEDI.GsGcEDI.Visible(True)
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.FormatGrid.End
+
+Program.Sub.AddContextMenu.Start
+f.Intrinsic.Control.Try
+	gui.FormEDI..ContextMenuCreate("ctxEDI")
+	gui.FormEDI.GsGcEDI.ContextMenuAttach("ctxEDI")
+	gui.FormEDI..ContextMenuAddItem("ctxEDI", "SelectAll", 0, "Select/UnSelect All")
+	gui.FormEDI..ContextMenuAddItem("ctxEDI", "MarkResolved", 0, "Mark Selected As Resolved")
+	gui.FormEDI..ContextMenuAddItem("ctxEDI", "MarkNotResolved", 0, "Mark Selected As Not Resolved")
+	gui.FormEDI..ContextMenuAddItem("ctxEDI", "ExportExcel", 0, "Export to Excel")
+	gui.FormEDI..ContextMenuSetItemEventHandler("ctxEDI", "SelectAll", "SelectAllRows")
+	gui.FormEDI..ContextMenuSetItemEventHandler("ctxEDI", "MarkResolved", "MarkSelectedAsResolved")
+	gui.FormEDI..ContextMenuSetItemEventHandler("ctxEDI", "MarkNotResolved", "MarkSelectedAsNotResolved")
+	gui.FormEDI..ContextMenuSetItemEventHandler("ctxEDI", "ExportExcel", "ExportToExcel")
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.AddContextMenu.End
+
+Program.Sub.GsGcEDI_RowCellClick.Start
+f.Intrinsic.Control.Try
+	v.Local.sFile.Declare(String)
+	v.Local.bResolved.Declare(Boolean)
+	v.Local.sSQL.Declare(String)
+	
+	f.Intrinsic.Control.If(v.Args.Column,=,"SELECT")
+		f.Intrinsic.Control.If(v.DataTable.dtEDI(v.Args.RowIndex).SELECT!FieldVal,=,"0")
+			f.Data.DataTable.SetValue("dtEDI", v.Args.RowIndex, "SELECT", 1)
+		f.Intrinsic.Control.Else
+			f.Data.DataTable.SetValue("dtEDI", v.Args.RowIndex, "SELECT", 0)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.Control.If(v.Args.Column,=,"REPORTFILE")
+		v.Local.sFile.Set(v.DataTable.dtEDI(v.Args.RowIndex).REPORTFILE.FieldValTrim)
+		f.Intrinsic.Control.If(v.Local.sFile,!=,"")
+			F.Intrinsic.Task.ShellExec(0,"",V.Local.sFile,"","",1)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.Control.If(v.Args.Column,=,"RESOLVED")
+		f.ODBC.Connection!Con.OpenCompanyConnection
+		f.Intrinsic.Control.If(v.DataTable.dtEDI(v.Args.RowIndex).RESOLVED!FieldVal,=,"0")
+			f.Data.DataTable.SetValue("dtEDI", v.Args.RowIndex, "RESOLVED", 1)
+			f.Intrinsic.String.Build("update GCG_6887_EDI_LOG set RESOLVED=1 where EID='{0}'", v.DataTable.dtEDI(v.Args.RowIndex).EID!FieldValTrim, v.Local.sSQL)
+		f.Intrinsic.Control.Else
+			f.Data.DataTable.SetValue("dtEDI", v.Args.RowIndex, "RESOLVED", 0)
+			f.Intrinsic.String.Build("update GCG_6887_EDI_LOG set RESOLVED=0 where EID='{0}'", v.DataTable.dtEDI(v.Args.RowIndex).EID!FieldValTrim, v.Local.sSQL)
+		f.Intrinsic.Control.EndIf
+		f.ODBC.Connection!Con.Execute(v.Local.sSQL)
+		f.ODBC.Connection!Con.Close
+	f.Intrinsic.Control.EndIf
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.GsGcEDI_RowCellClick.End
+
+Program.Sub.FormEDI_UnLoad.Start
+f.Intrinsic.Control.CallSub(Serialize)
+f.Intrinsic.Control.End
+Program.Sub.FormEDI_UnLoad.End
+
+Program.Sub.cmdRefresh_Click.Start
+f.Intrinsic.Control.Try
+	
+	gui.FormEDI..Enabled(False)
+	
+	f.Intrinsic.Control.CallSub(Serialize)
+	
+	f.Intrinsic.Control.If(v.Screen.FormEDI!chkShowResolved.Value,=,1)
+		v.Global.bShowResolved.Set(True)
+	f.Intrinsic.Control.Else
+		v.Global.bShowResolved.Set(False)
+	f.Intrinsic.Control.EndIf
+	
+	
+	f.Intrinsic.Control.CallSub(GetData)
+	f.Intrinsic.Control.CallSub(FormatGrid)
+	f.Intrinsic.Control.CallSub(Deserialize)
+	
+	gui.FormEDI..Enabled(True)
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.cmdRefresh_Click.End
+
+Program.Sub.SelectAllRows.Start
+f.Intrinsic.Control.Try
+	v.Local.bSelect.Declare(Boolean)
+	v.Local.sFile.Declare(String)
+	v.Local.sRet.Declare(String)
+	v.Local.Sheet1.Declare(String)
+	v.Local.sHeaders.Declare(String)
+	v.Local.sDataType.Declare(String)
+	v.Local.iCount.Declare(Long)
+	v.Local.sHeadersBreakdown.Declare(String)
+	v.Local.bExists.Declare(Boolean)
+	v.Local.sListIndex.Declare(String)
+	v.Local.sFilter.Declare(String)
+	v.Local.sIndex.Declare(String)
+	v.Local.bCheck.Declare(Boolean)
+	
+	f.Intrinsic.UI.InvokeWaitDialog("Selecting...")
+	gui.FormEDI..Enabled(False)
+	
+	'force ID fields to show in export file
+	gui.FormEDI.GsGcEDI.SetColumnProperty("gvEDI", "EID", v.Enum.ColumnPropertyNames!Visible, True)
+	
+'	v.Local.sFile.Set("C:\Users\nle\Desktop\My Projects\6786 - Load King\Temp\Temp.xlsx")
+	f.Intrinsic.String.Build("{0}\{1}\", v.Caller.FilesDir, "6887", v.Local.sFile)
+	f.Intrinsic.File.DirExists(v.Local.sFile, v.Local.bExists)
+	f.Intrinsic.Control.If(v.Local.bExists,=,False)
+		f.Intrinsic.File.CreateDir(v.Local.sFile)
+	f.Intrinsic.Control.EndIf
+		
+	f.Intrinsic.String.Build("{0}\{1}TEMP.xlsx", v.Local.sFile, v.Caller.User, v.Local.sFile)
+	gui.FormEDI.GsGcEDI.Export(v.Local.sFile, "xlsx")
+	
+	f.Intrinsic.UI.Sleep(1)
+	'read
+	f.Automation.MSExcel.ReadSpreadsheet(v.Local.sFile, v.Local.sRet)
+	f.Intrinsic.String.Split(v.Local.sRet, "&^&", v.Local.sRet)
+	'remove header
+	f.Intrinsic.String.Split(v.Local.sRet(0), "$!$", v.Local.Sheet1)
+	v.Local.sHeaders.Set(v.Local.Sheet1(0))
+	f.Intrinsic.String.Split(v.Local.sHeaders,"*!*", v.Local.sHeadersBreakdown)
+	v.Local.Sheet1(0).Set("REMOVEDHEADER")
+	f.Intrinsic.String.Join(v.Local.Sheet1, "$!$", v.Local.Sheet1)
+	f.Intrinsic.String.Replace(v.Local.Sheet1, "REMOVEDHEADER$!$", "", v.Local.Sheet1)
+	
+	'datatype
+	f.Intrinsic.Control.For(v.Local.iCount,0,v.Local.sHeadersBreakdown.UBound,1)
+		f.Intrinsic.Control.If(v.Local.iCount,=,0)
+			f.Intrinsic.String.Build("{0}", "string", v.Local.sDataType)
+		f.Intrinsic.Control.Else
+			f.Intrinsic.String.Build("{0}*!*{1}", v.Local.sDataType, "string", v.Local.sDataType)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.Next(v.Local.iCount)
+	
+	f.Intrinsic.Control.If(v.DataTable.dtSelectedB.Exists)
+		f.Data.DataTable.Close("dtSelectedB")
+	f.Intrinsic.Control.EndIf
+	f.Data.Datatable.CreateFromString("dtSelectedB", v.Local.Sheet1, v.Local.sHeaders, v.Local.sDataType, "*!*", "$!$")
+	
+	'get list indexes
+	f.Intrinsic.Control.If(v.DataTable.dtSelectedB.RowCount,>,0)
+		f.Intrinsic.Control.For(v.Local.iCount,0, v.DataTable.dtSelectedB.RowCount--,1)
+			f.Intrinsic.String.Build("EID='{0}'", v.DataTable.dtSelectedB(v.Local.iCount).EID.FieldValTrim, v.Local.sFilter)
+			f.Data.DataTable.Select("dtEDI", v.Local.sFilter, v.Local.sIndex)
+			f.Intrinsic.Control.If(v.Local.sIndex,!=, "***NORETURN***")
+				f.Intrinsic.Control.If(v.Local.sListIndex,=,"")
+					v.Local.sListIndex.Set(v.Local.sIndex)
+					v.Local.bCheck.Set(v.DataTable.dtEDI(v.Local.sIndex).SELECT!FieldVal)
+				f.Intrinsic.Control.Else
+					f.Intrinsic.String.Build("{0},{1}",v.Local.sListIndex, v.Local.sIndex, v.Local.sListIndex)
+				f.Intrinsic.Control.EndIf
+			f.Intrinsic.Control.EndIf
+		f.Intrinsic.Control.Next(v.Local.iCount)
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.String.Split(v.Local.sListIndex,",", v.Local.sListIndex)
+	f.Intrinsic.Control.For(v.Local.iCount,0, v.Local.sListIndex.UBound,1)
+		f.Data.DataTable.SetValue("dtEDI", v.Local.sListIndex(v.Local.iCount), "SELECT", v.Local.bCheck.Not)
+	f.Intrinsic.Control.Next(v.Local.iCount)
+	
+	f.Intrinsic.UI.CloseWaitDialog
+	gui.FormEDI..Enabled(True)
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.SelectAllRows.End
+
+Program.Sub.MarkSelectedAsResolved.Start
+f.Intrinsic.Control.Try
+	v.Local.iCount.Declare(Long)
+	v.Local.sSQL.Declare(String)
+	
+	f.Data.DataView.Create("dtEDI", "dvSelected", 22, "SELECT=1","")
+	f.Intrinsic.Control.If(v.DataTable.dtSelected.Exists)
+		f.Data.DataTable.Close("dtSelected")
+	f.Intrinsic.Control.EndIf
+	f.Data.DataView.ToDataTable("dtEDI", "dvSelected", "dtSelected", True)
+	
+	f.Intrinsic.Control.If(v.DataTable.dtSelected.RowCount,=,0)
+		f.Intrinsic.UI.Msgbox("No Row Selected")
+		f.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.EndIf
+	
+	gui.FormEDI..Enabled(False)	
+	
+	f.ODBC.Connection!Con.OpenCompanyConnection
+	
+	f.Intrinsic.Control.For(v.Local.iCount,0,v.DataTable.dtSelected.RowCount--,1)
+		f.Intrinsic.String.Build("update GCG_6887_EDI_LOG set RESOLVED=1 where EID='{0}'", v.DataTable.dtSelected(v.Local.iCount).EID!FieldValTrim, v.Local.sSQL)
+		f.ODBC.Connection!Con.Execute(v.Local.sSQL)
+	f.Intrinsic.Control.Next(v.Local.iCount)
+	
+	f.ODBC.Connection!Con.Close
+	
+	f.Intrinsic.UI.Msgbox("Saved!")
+	
+	gui.FormEDI..Enabled(False)	
+	
+	f.Intrinsic.Control.CallSub(cmdRefresh_Click)
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.MarkSelectedAsResolved.End
+
+Program.Sub.MarkSelectedAsNotResolved.Start
+f.Intrinsic.Control.Try
+	v.Local.iCount.Declare(Long)
+	v.Local.sSQL.Declare(String)
+	
+	f.Data.DataView.Create("dtEDI", "dvSelected", 22, "SELECT=1","")
+	f.Intrinsic.Control.If(v.DataTable.dtSelected.Exists)
+		f.Data.DataTable.Close("dtSelected")
+	f.Intrinsic.Control.EndIf
+	f.Data.DataView.ToDataTable("dtEDI", "dvSelected", "dtSelected", True)
+	
+	f.Intrinsic.Control.If(v.DataTable.dtSelected.RowCount,=,0)
+		f.Intrinsic.UI.Msgbox("No Row Selected")
+		f.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.EndIf
+	
+	gui.FormEDI..Enabled(False)	
+	
+	f.ODBC.Connection!Con.OpenCompanyConnection
+	
+	f.Intrinsic.Control.For(v.Local.iCount,0,v.DataTable.dtSelected.RowCount--,1)
+		f.Intrinsic.String.Build("update GCG_6887_EDI_LOG set RESOLVED=0 where EID='{0}'", v.DataTable.dtSelected(v.Local.iCount).EID!FieldValTrim, v.Local.sSQL)
+		f.ODBC.Connection!Con.Execute(v.Local.sSQL)
+	f.Intrinsic.Control.Next(v.Local.iCount)
+	
+	f.ODBC.Connection!Con.Close
+	
+	f.Intrinsic.UI.Msgbox("Saved!")
+	
+	gui.FormEDI..Enabled(False)	
+	
+	f.Intrinsic.Control.CallSub(cmdRefresh_Click)
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.MarkSelectedAsNotResolved.End
+
+Program.Sub.ExportToExcel.Start
+f.Intrinsic.Control.Try
+	v.Local.sFile.Declare(String)
+	v.Local.bExt.Declare(Boolean)
+	
+	'file dialog
+	f.Intrinsic.UI.ShowSaveFileDialog("", "xlsx", "", v.Local.sFile)
+	
+	'export
+	f.Intrinsic.Control.If(v.Local.sFile,!=,"***CANCEL***")
+		f.Intrinsic.String.IsInString(v.Local.sFile, "xls",False, v.Local.bExt)
+		f.Intrinsic.Control.If(v.Local.bExt,=,False)
+			f.Intrinsic.String.Build("{0}.xlsx", v.Local.sFile, v.Local.sFile)
+		f.Intrinsic.Control.EndIf
+		gui.FormEDI.GsGcEDI.Export(v.Local.sFile, "xlsx")
+		F.Intrinsic.Task.ShellExec(0,"",V.Local.sFile,"","",1)
+	f.Intrinsic.Control.EndIf
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.ExportToExcel.End
+
+Program.Sub.Serialize.Start
+F.Intrinsic.Control.Try
+	V.Local.sSerialize.Declare(String)
+	gui.FormEDI.GsGcEDI.Serialize("gvEDI",V.Local.sSerialize)
+	F.Global.Registry.AddValue(V.Caller.User,V.Caller.CompanyCode,"gvEDI",6887,1000,False,"Serialize",False,0,-999.0,1/1/1980,12:00:00 AM,V.Local.sSerialize)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.UI.Msgbox(V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.Serialize.End
+
+Program.Sub.Deserialize.Start
+F.Intrinsic.Control.Try
+	V.Local.sSerialize.Declare(String)
+	F.Global.Registry.ReadValue(V.Caller.User,V.Caller.CompanyCode,"gvEDI",6887,1000,6,"",V.Local.sSerialize)
+	F.Intrinsic.Control.If(V.Local.sSerialize.Trim,<>,"")
+		gui.FormEDI.GsGcEDI.Deserialize(V.Local.sSerialize)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Catch
+	F.Intrinsic.UI.Msgbox(V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.Deserialize.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$nle$}$20220927142912242$}$kjzCRYkA6UEoRnCwndYnRYciZCm2U5XY9smyTpZvbBytu/Wv+uw7O2R5VRwxJPur
+Program.Sub.Comments.End
