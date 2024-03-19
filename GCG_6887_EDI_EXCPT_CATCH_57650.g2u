@@ -1,0 +1,235 @@
+﻿Program.Sub.Preflight.Start
+v.Global.sCompanyCode.Declare(String)
+Program.Sub.Preflight.End
+
+'ARC 6887 
+'Cust: Universal Metal Products Inc
+
+'BUSINESS CASE
+'UNIVERSAL METAL PRODUCTS currently uses the EDI Automation, however, the error reporting for EDI Automation is very difficult to read through to see what, 
+'if anything, generated an error.  What UNIVERSAL METAL PRODUCTS needs is a log of specific errors so they can be displayed later in a custom GAB Gridview similar to the EDI Exceptions core screen.
+
+'hook 57650 - EDI Inbound Automation - ORD046
+'This script runs after EDI Inbound flow and captures the errors
+
+Program.Sub.Main.Start
+f.Intrinsic.Control.Try
+	v.Local.sError.Declare(String)
+	v.Local.sLog.Declare(String)
+	v.Local.sSQL.Declare(String)
+	v.Local.sBIRUNID.Declare(String)
+	v.Local.dTempDate.Declare(Date)
+	v.Local.sDate_Process.Declare(String)
+	v.Local.sTime_Process.Declare(String)
+	v.Local.sReportFile.Declare(String)
+	v.Local.sUSER.Declare(String)
+	v.Local.sFileName.Declare(String)
+	v.Local.iCurrentID.Declare(Long)
+	v.Local.sCurrentID.Declare(String)
+	v.Local.sNextID.Declare(String)
+	v.Local.sNextEID.Declare(String)
+	v.Local.iCount.Declare(Long)
+	
+	'only execute on hook 57650
+	f.Intrinsic.Control.If(v.Caller.Hook,!=,"57650")
+		f.Intrinsic.Control.End
+	f.Intrinsic.Control.EndIf
+	
+	
+	'check and keep track of company codes
+	v.Global.sCompanyCode.Set(v.Caller.CompanyCode)
+	
+	
+	'get passed var
+	'EDIUserid = User
+	'InboundDirectoryFilename = filename
+	'InboundFiledate = file date YYYYMMDD
+	'InboundFileTime = file time HHNNSS00
+	'RunID = BIRUNID
+	'ReportFilename = Report file name
+	'------------------------------------------
+	f.Intrinsic.String.Build("CCC:{1}{0}. BIRUNID:{2}.{0} EDIUser:{3}.{0} File:{4}.{0} Date:{5}.{0} Time:{6}.{0} Report:{7}", v.Ambient.NewLine, v.Global.sCompanyCode, v.Passed.RunID, v.Passed.EDIUserid, v.Passed.InboundDirectoryFilename, v.Passed.InboundFileDate, v.Passed.InboundFileTime, v.Passed.ReportFilename, v.Local.sLog)
+	f.Intrinsic.Control.CallSub(ErrorLog, "argMsg", v.Local.sLog)
+	
+	f.Intrinsic.UI.Sleep(60)
+	
+	v.Local.sBIRUNID.Set(v.Passed.RunID)
+	v.Local.sUSER.Set(v.Passed.EDIUserid)
+	f.Intrinsic.Date.ConvertDString(v.Passed.InboundFileDate, "YYYYMMDD", v.Local.dTempDate)
+	f.Intrinsic.String.Build(v.Local.dTempDate, "YYYY-MM-DD", v.Local.sDate_Process)
+	v.Local.sTime_Process.Set(v.Passed.InboundFileTime)
+	f.Intrinsic.String.Build("{0}\EDI\{1}\RPT\{2}", v.Caller.FilesDir, v.Caller.CompanyCode, v.Passed.ReportFilename, v.Local.sReportFile)
+	v.Local.sFileName.Set(v.Passed.InboundDirectoryFilename)
+
+'	v.Local.sBIRUNID.Set("01294549")
+'	v.Local.sUSER.Set("ONLINE2")
+'	v.Local.sDate_Process.Set("2022-09-20")
+'	v.Local.sTime_Process.Set("06173558")
+'	v.Local.sFileName.Set("\\GSSDB\Apps\Global\FILES\EDI\CLE\INBOUND\EA850CLE_20220920_060052.CLE")
+'	f.Intrinsic.String.Build("{0}\EDI\{1}\RPT\{2}", v.Caller.FilesDir, v.Caller.CompanyCode, "ORD046.A.CLE.318.20220920.06173558.PDF", v.Local.sReportFile)
+	
+	
+	f.Intrinsic.Control.If(v.Local.sBIRUNID.Trim,=,"")
+		f.Intrinsic.Control.CallSub(ErrorLog, "argMsg", "BIRUNID Not Found")
+		f.Intrinsic.Control.End
+	f.Intrinsic.Control.EndIf
+	
+	'gather info
+	f.Intrinsic.String.Build("select '{2}' DATE_PROCESS, '{3}' TIME_PROCESS, '{6}' USER_ID, L.BIRUNID, '{4}' FILENAME, '{5}' REPORTFILE, RTRIM(L.BUYER_ID) BUYERID, RTRIM(L.PO_NUMBER) PO_NUMBER, RTRIM(L.SHIPTO_CODE) SHIPTO_CODE, RTRIM(L.PART_NUMBER) CUSTOMER_PART, RTRIM(L.PART_INV) INV_PART, RTRIM(L.PART_LOC) LOCATION, L.CUST_PRICE PRICE_CUSTOMER, L.INVENTORY_PRICE PRICE_GSS, RTRIM(L.PRICE_DESC) PRICE_DESC, RTRIM(L.L_STATUS) ERROR_STATUS_LINE,  RTRIM(L.STATUS2) ERROR_WARNING_LINE,  '{1}' COMPANY_CODE, '' EID, H.MSG_LINE ERROR_WARNING_MSG, 0 as RESOLVED, '' SO_NUMBER, '' ERROR_STATUS_HEAD, '' ERROR_WARNING_HEAD, '' CUSTOMER_ID, '' CUSTOMER_NAME, '' SHIPTO_ADDL from Z_EDI_LINE L left join Z_EDI_HDR_MSG H on L.BIRUNID = H.BIRUNID and L.BUYER_ID = H.BUYER_ID and L.SHIPTO_CODE = H.SHIPTO_CODE and L.DUP_SEQ = H.DUP_SEQ and L.PO_NUMBER = H.PO_NUMBER where L.BIRUNID ={0} and (L.L_STATUS > '' or L.STATUS2 > '')", v.Local.sBIRUNID.PSQLFriendly, v.Caller.CompanyCode, v.Local.sDate_Process, v.Local.sTime_Process.PSQLFriendly, v.Local.sFileName.PSQLFriendly, v.Local.sReportFile.PSQLFriendly, v.Local.sUSER, v.Local.sSQL)
+	
+	f.ODBC.Connection!Con.OpenCompanyConnection
+	f.Intrinsic.Control.If(v.DataTable.dtEDILOG.Exists)
+		f.Data.DataTable.Close("dtEDILOG")
+	f.Intrinsic.Control.EndIf
+	f.Data.DataTable.CreateFromSQL("dtEDILOG", "Con", v.Local.sSQL, True)
+	
+	f.Intrinsic.Control.If(v.DataTable.dtEDILOG.RowCount,=,0)
+		f.Intrinsic.Control.CallSub(ErrorLog, "argMsg", "No Error/Warning Found")
+		f.Intrinsic.Control.End
+	f.Intrinsic.Control.EndIf
+	
+	
+	
+	'dict fill from V_EDI_SO_HEADER
+	'-----------------------------------------------
+'	'SO NUMBER
+'	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.PO_NUMBER), RTRIM(A.ORDER_NO) from V_EDI_SO_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_EDI_SO_HEADER REF where A.PO_NUMBER = REF.PO_NUMBER) group by PO_NUMBER, ORDER_NO order by PO_NUMBER")
+'	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+'	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "SO_NUMBER")
+'	f.Data.Dictionary.Close("dictTemp")
+'	
+'	'CUSTOMER
+'	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.PO_NUMBER), RTRIM(A.CUSTOMER) from V_EDI_SO_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_EDI_SO_HEADER REF where A.PO_NUMBER = REF.PO_NUMBER) group by PO_NUMBER, CUSTOMER order by PO_NUMBER")
+'	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+'	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "CUSTOMER_ID")
+'	f.Data.Dictionary.Close("dictTemp")
+'	
+'	'NAME CUSTOMER
+'	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.PO_NUMBER), RTRIM(A.NAME_CUSTOMER) from V_EDI_SO_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_EDI_SO_HEADER REF where A.PO_NUMBER = REF.PO_NUMBER) group by PO_NUMBER, NAME_CUSTOMER order by PO_NUMBER")
+'	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+'	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "CUSTOMER_NAME")
+'	f.Data.Dictionary.Close("dictTemp")
+'	
+'	'ERROR_STATUS_HEAD
+'	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.PO_NUMBER), RTRIM(A.STATUS) from V_EDI_SO_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_EDI_SO_HEADER REF where A.PO_NUMBER = REF.PO_NUMBER) group by PO_NUMBER, STATUS order by PO_NUMBER")
+'	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+'	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "ERROR_STATUS_HEAD")
+'	f.Data.Dictionary.Close("dictTemp")
+'	
+'	'ERROR_WARNING_HEAD
+'	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.PO_NUMBER), RTRIM(A.WARNING_STATUS) from V_EDI_SO_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_EDI_SO_HEADER REF where A.PO_NUMBER = REF.PO_NUMBER) group by PO_NUMBER, WARNING_STATUS order by PO_NUMBER")
+'	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+'	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "ERROR_WARNING_HEAD")
+'	f.Data.Dictionary.Close("dictTemp")
+	'-----------------------------------------------
+	
+	
+	'Sep 27 2022
+	'dict fill from V_ORDER_HEADER
+	'	to replace filling from V_EDI_SO_HEADER
+	'-----------------------------------------------
+	'SO NUMBER
+	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.CUSTOMER_PO), RTRIM(A.ORDER_NO) from V_ORDER_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_ORDER_HEADER REF where A.CUSTOMER_PO = REF.CUSTOMER_PO) group by CUSTOMER_PO, ORDER_NO order by CUSTOMER_PO")
+	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "SO_NUMBER")
+	f.Data.Dictionary.Close("dictTemp")
+	
+	'CUSTOMER
+	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.CUSTOMER_PO), RTRIM(A.CUSTOMER) from V_ORDER_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_ORDER_HEADER REF where A.CUSTOMER_PO = REF.CUSTOMER_PO) group by CUSTOMER_PO, CUSTOMER order by CUSTOMER_PO")
+	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "CUSTOMER_ID")
+	f.Data.Dictionary.Close("dictTemp")
+	
+	'NAME CUSTOMER
+	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(CUSTOMER), RTRIM(NAME_CUSTOMER) from V_CUSTOMER_MASTER")
+	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "CUSTOMER_ID", "CUSTOMER_NAME")
+	f.Data.Dictionary.Close("dictTemp")
+	
+	'ERROR_STATUS_HEAD
+	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.PO_NUMBER), RTRIM(A.STATUS) from V_EDI_SO_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_EDI_SO_HEADER REF where A.PO_NUMBER = REF.PO_NUMBER) group by PO_NUMBER, STATUS order by PO_NUMBER")
+	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "ERROR_STATUS_HEAD")
+	f.Data.Dictionary.Close("dictTemp")
+	
+	'ERROR_WARNING_HEAD
+	f.Data.Dictionary.CreateFromSQL("dictTemp", "Con", "select RTRIM(A.PO_NUMBER), RTRIM(A.WARNING_STATUS) from V_EDI_SO_HEADER A where A.ORDER_NO = (select MAX(REF.ORDER_NO) from V_EDI_SO_HEADER REF where A.PO_NUMBER = REF.PO_NUMBER) group by PO_NUMBER, WARNING_STATUS order by PO_NUMBER")
+	f.Data.Dictionary.SetDefaultReturn("dictTemp","")
+	f.Data.DataTable.FillFromDictionary("dtEDILOG", "dictTemp", "PO_NUMBER", "ERROR_WARNING_HEAD")
+	f.Data.Dictionary.Close("dictTemp")
+	'-----------------------------------------------
+	
+	
+	'switch to CLE for Next ID and Write
+	'unique ID
+	'get last EID
+	f.ODBC.Connection!Con.Close
+	f.Global.General.OverrideCompany("CLE")
+	f.ODBC.Connection!Con.OpenCompanyConnection
+	
+	f.Intrinsic.String.Build("select RTRIM(MAX(EID)) from GCG_6887_EDI_LOG where EID like '{0}%'", v.Global.sCompanyCode, v.Local.sSQL)
+	f.ODBC.Connection!Con.ExecuteAndReturn(v.Local.sSQL, v.Local.sCurrentID)
+	f.Intrinsic.String.Right(v.Local.sCurrentID, 10, v.Local.iCurrentID)
+	
+	f.Intrinsic.Control.For(v.Local.iCount,0,v.DataTable.dtEDILOG.RowCount--,1)
+		f.Intrinsic.Math.Add(v.Local.iCurrentID, 1, v.Local.iCurrentID)
+		f.Intrinsic.String.LPad(v.Local.iCurrentID,"0", 10, v.Local.sNextID)
+		f.Intrinsic.String.Build("{0}{1}", v.Global.sCompanyCode, v.Local.sNextID, v.Local.sNextEID)
+		f.Data.DataTable.SetValue("dtEDILOG", v.Local.iCount, "EID", v.Local.sNextEID)
+	f.Intrinsic.Control.Next(v.Local.iCount)
+		
+	'write to table
+	f.Data.DataTable.SaveToDB("dtEDILOG", "Con", "GCG_6887_EDI_LOG", "EID*!*TIME_PROCESS*!*FILENAME", 128)
+	
+	f.ODBC.Connection!Con.Close
+	
+f.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	f.Intrinsic.Control.CallSub(ErrorLog, "argMsg", v.Local.sError)
+f.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+
+'This log is trigger when there are errors in the program
+'arg: argMsg
+Program.Sub.ErrorLog.Start
+	v.Local.sFileName.Declare(String)
+	v.Local.isFileExists.Declare(Boolean)
+	v.Local.isDirExists.Declare(Boolean)
+	v.Local.sLogMsg.Declare(String)
+	v.Local.sARC.Declare(String)
+	
+	v.Local.sARC.Set("6887")
+
+	'check if Dir exists
+	f.Intrinsic.String.Build("{0}\CUSTOM\{1}\{2}\{3}", v.Caller.GlobalDir, v.Local.sARC, "Error Log",v.Caller.CompanyCode, v.Local.sFileName)
+	f.Intrinsic.File.DirExists(v.Local.sFileName, v.Local.isDirExists)
+	f.Intrinsic.Control.If(v.Local.isDirExists,=,False)
+		f.Intrinsic.File.CreateDir(v.Local.sFileName)
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.String.Build("{0}\{1}{2}.txt", v.Local.sFileName, "Error Log on  ",v.Ambient.Now.FormatYYYYMMDD-HHNNSS,v.Local.sFileName)
+	
+	'check file exist
+	f.Intrinsic.File.Exists(v.Local.sFileName, v.Local.isFileExists)
+	
+	f.Intrinsic.Control.If(v.Local.isFileExists,=,False)
+		f.Intrinsic.File.String2File(v.Local.sFileName, "Start Log")
+		f.Intrinsic.File.Append2File(v.Local.sFileName, v.Ambient.NewLine)
+		f.Intrinsic.File.Append2File(v.Local.sFileName, "********************")
+		f.Intrinsic.File.Append2File(v.Local.sFileName, v.Ambient.NewLine)
+		
+	f.Intrinsic.Control.EndIf
+	
+	'append
+	v.Local.sLogMsg.Set(v.Args.argMsg)
+	f.Intrinsic.String.Build("{0} {1}: {2}", v.Ambient.Now.FormatMM/DD/YYYY, v.Ambient.Now.FormatHH:NN:SS, v.Local.sLogMsg, v.Local.sLogMsg)
+	f.Intrinsic.File.Append2File(v.Local.sFileName, v.Local.sLogMsg)
+	f.Intrinsic.File.Append2File(v.Local.sFileName, v.Ambient.NewLine)
+
+Program.Sub.ErrorLog.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$nle$}$20220928082548162$}$kjzCRYkA6UEoRnCwndYnRYciZCm2U5XYSfDfW+2OVuOl23WlFYN2LdFqoo7dSL8/
+Program.Sub.Comments.End
